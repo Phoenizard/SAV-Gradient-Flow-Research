@@ -11,7 +11,7 @@ from src.utils.slack import send_slack
 def _train_optimizer(method_name, optimizer_cls, optimizer_kwargs,
                      model, X_train, y_train, X_test, y_test,
                      batch_size=256, epochs=50000, device=None,
-                     slack_interval=1000):
+                     slack_interval=5000, wandb_run=None):
     """Generic training loop for torch optimizers (SGD, Adam).
 
     Returns standardized result dict.
@@ -61,6 +61,10 @@ def _train_optimizer(method_name, optimizer_cls, optimizer_kwargs,
         test_losses.append(te_loss)
         energy_values.append(tr_loss)
 
+        if wandb_run is not None:
+            wandb_run.log({"epoch": epoch, "train_loss": tr_loss,
+                           "test_loss": te_loss, "energy": tr_loss})
+
         if epoch % slack_interval == 0 or epoch == 1:
             send_slack(
                 f"{method_name} | epoch {epoch}/{epochs} | "
@@ -88,7 +92,7 @@ def _train_optimizer(method_name, optimizer_cls, optimizer_kwargs,
 
 def train_sgd(model, X_train, y_train, X_test, y_test,
               lr=0.1, batch_size=256, epochs=50000, device=None,
-              slack_interval=1000):
+              slack_interval=5000, wandb_run=None):
     """Train with vanilla SGD (no momentum)."""
     return _train_optimizer(
         "SGD",
@@ -96,13 +100,13 @@ def train_sgd(model, X_train, y_train, X_test, y_test,
         {"lr": lr, "momentum": 0},
         model, X_train, y_train, X_test, y_test,
         batch_size=batch_size, epochs=epochs, device=device,
-        slack_interval=slack_interval,
+        slack_interval=slack_interval, wandb_run=wandb_run,
     )
 
 
 def train_adam(model, X_train, y_train, X_test, y_test,
                lr=0.001, batch_size=256, epochs=50000, device=None,
-               slack_interval=1000):
+               slack_interval=5000, wandb_run=None):
     """Train with Adam optimizer."""
     return _train_optimizer(
         "Adam",
@@ -110,5 +114,5 @@ def train_adam(model, X_train, y_train, X_test, y_test,
         {"lr": lr, "betas": (0.9, 0.999)},
         model, X_train, y_train, X_test, y_test,
         batch_size=batch_size, epochs=epochs, device=device,
-        slack_interval=slack_interval,
+        slack_interval=slack_interval, wandb_run=wandb_run,
     )

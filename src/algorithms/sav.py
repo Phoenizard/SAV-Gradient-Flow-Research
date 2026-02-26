@@ -55,7 +55,8 @@ def _evaluate_batch_loss(model, theta, X_batch, y_batch, loss_fn):
 
 def train_vanilla_sav(model, X_train, y_train, X_test, y_test,
                       C=1.0, lambda_=0.0, dt=0.1, batch_size=256,
-                      epochs=50000, device=None, slack_interval=1000):
+                      epochs=50000, device=None, slack_interval=5000,
+                      wandb_run=None):
     """Algorithm 1: Vanilla SAV.
 
     Per MATH_REFERENCE lines 84-90:
@@ -132,6 +133,10 @@ def train_vanilla_sav(model, X_train, y_train, X_test, y_test,
         energy_values.append(energy)
         r_values.append(r)
 
+        if wandb_run is not None:
+            wandb_run.log({"epoch": epoch, "train_loss": tr_loss,
+                           "test_loss": te_loss, "energy": energy, "r": r})
+
         if epoch % slack_interval == 0 or epoch == 1:
             send_slack(
                 f"Vanilla SAV | epoch {epoch}/{epochs} | "
@@ -160,7 +165,8 @@ def train_vanilla_sav(model, X_train, y_train, X_test, y_test,
 
 def train_restart_sav(model, X_train, y_train, X_test, y_test,
                       C=1.0, lambda_=0.0, dt=0.1, batch_size=256,
-                      epochs=50000, device=None, slack_interval=1000):
+                      epochs=50000, device=None, slack_interval=5000,
+                      wandb_run=None):
     """Algorithm 2: Restart SAV.
 
     Per MATH_REFERENCE lines 121-126:
@@ -234,6 +240,10 @@ def train_restart_sav(model, X_train, y_train, X_test, y_test,
         energy_values.append(energy)
         r_values.append(r)
 
+        if wandb_run is not None:
+            wandb_run.log({"epoch": epoch, "train_loss": tr_loss,
+                           "test_loss": te_loss, "energy": energy, "r": r})
+
         if epoch % slack_interval == 0 or epoch == 1:
             send_slack(
                 f"Restart SAV | epoch {epoch}/{epochs} | "
@@ -262,7 +272,8 @@ def train_restart_sav(model, X_train, y_train, X_test, y_test,
 
 def train_relax_sav(model, X_train, y_train, X_test, y_test,
                     C=1.0, lambda_=0.0, dt=0.1, batch_size=256,
-                    epochs=50000, device=None, slack_interval=1000):
+                    epochs=50000, device=None, slack_interval=5000,
+                    wandb_run=None):
     """Algorithm 3: Relax SAV.
 
     Per MATH_REFERENCE lines 188-195:
@@ -363,6 +374,10 @@ def train_relax_sav(model, X_train, y_train, X_test, y_test,
         test_losses.append(te_loss)
         energy_values.append(energy)
         r_values.append(r)
+
+        if wandb_run is not None:
+            wandb_run.log({"epoch": epoch, "train_loss": tr_loss,
+                           "test_loss": te_loss, "energy": energy, "r": r})
 
         if epoch % slack_interval == 0 or epoch == 1:
             send_slack(

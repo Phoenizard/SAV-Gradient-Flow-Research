@@ -10,6 +10,7 @@ import os
 import sys
 import time
 import torch
+import wandb
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -22,6 +23,8 @@ from src.algorithms.sav import train_vanilla_sav, train_restart_sav, train_relax
 from src.utils.plotting import plot_loss_curves, plot_energy_curves, plot_r_values
 from src.utils.slack import send_slack
 
+WANDB_PROJECT = "sav-gradient-flow-research"
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -30,7 +33,8 @@ def main():
     args = parser.parse_args()
 
     epochs = args.epochs or (100 if args.smoke else 50000)
-    slack_interval = 50 if args.smoke else 1000
+    slack_interval = 50 if args.smoke else 5000
+    tag = "smoke" if args.smoke else "full"
 
     device = get_device()
     print(f"Device: {device}")
@@ -44,42 +48,70 @@ def main():
     torch.save({"X_train": X_tr, "y_train": y_tr, "X_test": X_te, "y_test": y_te},
                os.path.join(out_dir, "data_example2.pt"))
 
+    # Common config for wandb
+    base_config = {
+        "example": "example2_poly",
+        "D": 20, "m": 100, "N_train": 1000, "N_test": 200,
+        "batch_size": 256, "epochs": epochs, "seed": 42,
+    }
+
     all_results = []
     t_total = time.time()
 
     methods = [
-        ("SGD", lambda net: train_sgd(
+        ("SGD", {"lr": 0.1, "momentum": 0},
+         lambda net, wb: train_sgd(
             net, X_tr, y_tr, X_te, y_te,
             lr=0.1, batch_size=256, epochs=epochs, device=device,
-            slack_interval=slack_interval)),
-        ("Adam", lambda net: train_adam(
+            slack_interval=slack_interval, wandb_run=wb)),
+        ("Adam", {"lr": 0.001, "betas": (0.9, 0.999)},
+         lambda net, wb: train_adam(
             net, X_tr, y_tr, X_te, y_te,
             lr=0.001, batch_size=256, epochs=epochs, device=device,
-            slack_interval=slack_interval)),
-        ("Vanilla SAV", lambda net: train_vanilla_sav(
+            slack_interval=slack_interval, wandb_run=wb)),
+        ("Vanilla_SAV", {"C": 1.0, "lambda": 0.0, "dt": 0.1},
+         lambda net, wb: train_vanilla_sav(
             net, X_tr, y_tr, X_te, y_te,
             C=1.0, lambda_=0.0, dt=0.1, batch_size=256, epochs=epochs,
-            device=device, slack_interval=slack_interval)),
-        ("Restart SAV", lambda net: train_restart_sav(
+            device=device, slack_interval=slack_interval, wandb_run=wb)),
+        ("Restart_SAV", {"C": 1.0, "lambda": 0.0, "dt": 0.1},
+         lambda net, wb: train_restart_sav(
             net, X_tr, y_tr, X_te, y_te,
             C=1.0, lambda_=0.0, dt=0.1, batch_size=256, epochs=epochs,
-            device=device, slack_interval=slack_interval)),
-        ("Relax SAV", lambda net: train_relax_sav(
+            device=device, slack_interval=slack_interval, wandb_run=wb)),
+        ("Relax_SAV", {"C": 1.0, "lambda": 0.0, "dt": 0.1},
+         lambda net, wb: train_relax_sav(
             net, X_tr, y_tr, X_te, y_te,
             C=1.0, lambda_=0.0, dt=0.1, batch_size=256, epochs=epochs,
-            device=device, slack_interval=slack_interval)),
+            device=device, slack_interval=slack_interval, wandb_run=wb)),
     ]
 
-    for name, train_fn in methods:
+    for name, method_config, train_fn in methods:
         print(f"\n{'='*60}")
         print(f"  {name}")
         print(f"{'='*60}")
 
+        # Init wandb run
+        run_config = {**base_config, **method_config, "method": name}
+        wb_run = wandb.init(
+            project=WANDB_PROJECT,
+            name=f"phase1-ex2-{name}-{tag}",
+            config=run_config,
+            tags=["phase1", "example2", tag, name],
+            reinit=True,
+        )
+
         net = OneHiddenLayerNet(D=20, m=100, seed=42).to(device)
-        result = train_fn(net)
+        result = train_fn(net, wb_run)
         all_results.append(result)
 
-        fname = name.lower().replace(" ", "_")
+        wb_run.summary["final_train_loss"] = result["final_train_loss"]
+        wb_run.summary["final_test_loss"] = result["final_test_loss"]
+        wb_run.summary["wall_time"] = result["wall_time"]
+        wb_run.finish()
+
+        # Save per-method result
+        fname = name.lower()
         torch.save(result, os.path.join(out_dir, f"example2_{fname}.pt"))
         print(f"  Final train_loss={result['final_train_loss']:.4e}, "
               f"test_loss={result['final_test_loss']:.4e}, "
