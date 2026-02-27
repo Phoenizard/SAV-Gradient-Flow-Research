@@ -10,21 +10,24 @@ This file contains **verbatim or closely paraphrased** settings from the paper. 
 
 The neural network is a **one-hidden-layer network**:
 
-$$f(\theta; x) = \sum_{k=1}^{m} a_k \sigma(w_k \cdot x + b_k)$$
+$$f(\theta; x) = \frac{1}{m} \sum_{k=1}^{m} a_k \sigma(w_k \cdot x + b_k)$$
 
 where:
 - $\sigma$ = **ReLU** activation (paper uses ReLU for DL examples)
 - $m$ = number of neurons in the hidden layer (varies per experiment, see below)
 - Parameters $\theta = \{w_k, b_k, a_k\}_{k=1}^m$
 - $w_k \in \mathbb{R}^D$, $b_k \in \mathbb{R}$, $a_k \in \mathbb{R}$
+- **CRITICAL: The 1/m factor is part of the architecture, not just notation**
 
 **Implementation note:** Bias $b_k$ can be absorbed into $w_k$ by augmenting $x$ with a constant 1, giving $W \in \mathbb{R}^{(D+1) \times m}$ and $a \in \mathbb{R}^{m \times 1}$.
 
-**Loss function:** Mean Squared Error (MSE)
+**Data preprocessing:** Z-score normalization: $x \Rightarrow (x - \mu) / \sigma$, where $\mu$ and $\sigma$ are computed from the training set.
 
-$$I(\theta) = \frac{1}{N} \sum_{i=1}^{N} (f(\theta; x_i) - y_i)^2$$
+**Loss function:** Relative error (NOT MSE):
 
-Note: Paper uses $\frac{1}{2N}$ convention in some places — use standard PyTorch `nn.MSELoss()` (which divides by $N$) for consistency.
+$$I(\theta) = \frac{\sum_{i=1}^{N} (f(\theta; x_i) - y_i)^2}{\sum_{i=1}^{N} y_i^2}$$
+
+**Data split:** 80% training, 20% testing from a single pool of M data points.
 
 ---
 
@@ -37,14 +40,7 @@ where $p_i, q_i$ are fixed random coefficients drawn from $\text{Uniform}(0,1)$ 
 
 **Data:**
 - Input $x \sim \text{Uniform}(0, 1)^D$
-- Dimension: $D = 20$ (primary), $D = 40$ (secondary)
-- Training samples: $N_{\text{train}} = 1000$
-- Test samples: $N_{\text{test}} = 200$
 - No noise added (clean targets)
-
-**Model size:** $m = 100$ neurons (primary experiments)
-
-**Training epochs:** 50,000 (for SAV-type methods); 50,000 for SGD/Adam baselines
 
 **Random seed:** Fix seed = 42 for data generation and model initialization.
 
@@ -59,59 +55,71 @@ where $c_i \sim \text{Uniform}(0, 1)$, fixed with seed.
 
 **Data:**
 - Input $x \sim \text{Uniform}(0, 5)^D$
-- Dimension: $D = 20$
-- Training samples: $N_{\text{train}} = 1000$
-- Test samples: $N_{\text{test}} = 200$
 - No noise added
 
-**Model size:** $m = 100$ neurons
+---
 
-**Training epochs:** 50,000
+## Per-Figure Experimental Settings
+
+All figures use: ReLU activation, Z-score normalized inputs, relative error loss, 80/20 train/test split from M total.
+
+| Fig | Example | D  | m    | M      | l (batch) | lr     | C   | λ  | Epochs | PM methods shown        |
+|-----|---------|----|------|--------|-----------|--------|-----|----|--------|-------------------------|
+| 1   | Ex1     | 20 | 1000 | 10000  | 8000(full)| 0.6    | 1   | 10 | 8000   | Euler,SAV,RelSAV        |
+| 2   | Ex1     | 40 | 1000 | 10000  | 64        | 0.2    | 1   | 0  | 10000  | Euler,SAV               |
+| 3   | Ex1     | 40 | 1000 | 100000 | 256       | 0.5/1.0| 100 | 4  | 10000  | (SPM only)              |
+| 5   | Ex1     | 40 | 1000 | 100000 | 256       | 0.5    | 100 | varies | 10000 | SAV (λ study)       |
+| 7   | Ex2     | 40 | 100  | 10000  | 64        | 0.01   | 1   | 0  | 10000  | Euler,SAV               |
+| 8   | Ex2     | 40 | 100  | 10000  | 64        | 0.4/1.0| 1   | 4  | 10000  | (SPM only)              |
+
+**Note:** We implement PM (particle method) only. SPM requires Gaussian smoothing kernel (out of scope).
 
 ---
 
-## Hyperparameters (Table 1 in Paper)
+## Reproduction Targets (PM only)
 
-### SAV Parameters
+### Primary: Fig 2 (Example 1, λ=0)
+- D=40, m=1000, M=10000, l=64, lr=0.2, C=1, λ=0, 10000 epochs
+- Methods: PM-Euler (SGD), PM-SAV, PM-ResSAV, PM-RelSAV
+- Expected: SAV train loss ~1e-10
 
-| Parameter | Symbol | Value | Notes |
-|-----------|--------|-------|-------|
-| SAV constant | $C$ | 1 | Ensures $I + C > 0$ |
-| Linear operator coeff | $\lambda$ | 0 | No regularization in primary experiments |
-| Time step (lr) | $\Delta t$ | 0.1 | Primary value; paper also tests 0.5, 1.0 |
-| Batch size | $l$ | 256 | Mini-batch SGD over training data |
-| Neurons | $m$ | 100 | Hidden layer width |
+### Primary: Fig 7 (Example 2, λ=0)
+- D=40, m=100, M=10000, l=64, lr=0.01, C=1, λ=0, 10000 epochs
+- Methods: PM-Euler (SGD), PM-SAV, PM-ResSAV, PM-RelSAV
+- Expected: SAV train loss ~1e-5
 
-### SGD Baseline Parameters
-
-| Parameter | Value |
-|-----------|-------|
-| Learning rate | 0.1 |
-| Batch size | 256 |
-| Momentum | 0 (vanilla SGD) |
-
-### Adam Baseline Parameters
-
-| Parameter | Value |
-|-----------|-------|
-| Learning rate | 0.001 |
-| $\beta_1$ | 0.9 |
-| $\beta_2$ | 0.999 |
-| Batch size | 256 |
+### Energy verification: Fig 1 (Example 1, λ=10)
+- D=20, m=1000, M=10000, l=8000 (full batch), lr=0.6, C=1, λ=10, 8000 epochs
+- Methods: GD, SAV, RelSAV
+- Expected: energy strictly non-increasing
 
 ---
 
-## Paper's Expected Qualitative Results (Phase 1 Verification)
+## SAV Algorithm Formulas (Paper's Version)
 
-From Figures 1–4 in the paper, the following qualitative trends should hold:
+### Vanilla SAV (Paper's Algorithm 2, PM version)
+- α = 1/(1 + λΔt)
+- μ^n = ∇I(θ^n) / √(I(θ^n) + C)
+- b = ‖μ^n‖²
+- r^{n+1} = r^n / (1 + αΔt/2 · b)
+- θ^{n+1} = θ^n − αΔt · r^{n+1} · μ^n
 
-1. **SAV converges faster than SGD** in terms of loss vs. epoch, especially in early training (< 10,000 epochs).
-2. **Restart SAV achieves lower final loss than Vanilla SAV** — Vanilla SAV's $r^n$ drifts, causing it to plateau earlier.
-3. **Relax SAV achieves the best or equal final loss** among the three SAV variants.
-4. All three SAV variants are **energy-stable**: the modified energy $\mathcal{E}^n = (r^n)^2 + \frac{\lambda}{2}\|\theta^n\|^2$ should be non-increasing at every step.
-5. SAV allows **larger learning rates** than SGD without divergence (paper tests $\Delta t = 0.5, 1.0$ which SGD cannot use stably).
+When λ=0: α=1, and this simplifies to the same as our original code.
 
-**Pause threshold (Phase 1):** If after 5,000 epochs, ALL THREE SAV variants have test loss ≥ SGD baseline test loss, write PAUSE_REPORT and stop.
+### Restart SAV (Paper's Algorithm 3, PM version)
+- Same as Vanilla but r̂^n = √(I(θ^n) + C) replaces r^n in the r update
+- r^{n+1} = r̂^n / (1 + αΔt/2 · b)
+- θ^{n+1} = θ^n − αΔt · r^{n+1} · μ^n
+
+### Relax SAV (Paper's Algorithm 4, PM version)
+1. Do vanilla SAV step → r̃, θ_new
+2. r̂ = √(I(θ_new) + C)
+3. Solve for ξ₀ using η=0.99:
+   - a = (r̃ − r̂)²
+   - b = 2r̂(r̃ − r̂)
+   - c = r̂² − r̃² − η·‖θ_new − θ_old‖²/Δt
+   - ξ₀ = max{0, (−b − √(b²−4ac)) / (2a)} if discriminant ≥ 0
+4. r_new = ξ₀·r̃ + (1−ξ₀)·r̂
 
 ---
 
@@ -119,5 +127,5 @@ From Figures 1–4 in the paper, the following qualitative trends should hold:
 
 - The paper uses **full-batch gradient** for the theoretical analysis, but **mini-batch** in experiments. Mini-batch means the energy stability is approximate (per-batch loss is used in the $r$ update, not the full training loss).
 - The auxiliary variable $r^n$ is initialized as $r^0 = \sqrt{I(\theta^0) + C}$ using the **full training set** loss at initialization.
-- For Restart SAV, $\hat{r}^n$ is recomputed from the **full training set** loss at each epoch (not each mini-batch step). Clarification: the paper is ambiguous here — Claude Code should implement both and note the difference.
+- For Restart SAV, $\hat{r}^n$ is recomputed from the **current mini-batch** loss at each step.
 - The paper does **not** report exact final loss values in a table; results are read from log-scale figures. Expect order-of-magnitude comparisons only.

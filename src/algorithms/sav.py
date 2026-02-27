@@ -1,15 +1,17 @@
 """SAV (Scalar Auxiliary Variable) family: Vanilla, Restart, Relax.
 
 Implements Algorithms 1-3 from MATH_REFERENCE.md.
+Corrected to match paper: RelativeErrorLoss, 1/m factor in network.
 """
 
 import math
 import time
 import torch
-import torch.nn as nn
 
 from src.models.network import OneHiddenLayerNet
-from src.utils.trainer import get_device, make_batches, evaluate_loss
+from src.utils.trainer import (
+    get_device, make_batches, evaluate_loss, RelativeErrorLoss
+)
 from src.utils.slack import send_slack
 
 
@@ -28,7 +30,7 @@ def _compute_mu_and_loss(model, theta, X_batch, y_batch, C, loss_fn):
     """Compute mu^n = grad_I / sqrt(I + C) for a mini-batch.
 
     Sets model params from theta, does forward+backward.
-    Returns (I_batch, mu, grad_I) where I_batch is the loss value (float),
+    Returns (I_batch, mu, grad_I, r_true) where I_batch is the loss value (float),
     mu is the normalized gradient (flat tensor), grad_I is the raw gradient.
     """
     model.unflatten_params(theta)
@@ -55,11 +57,10 @@ def _evaluate_batch_loss(model, theta, X_batch, y_batch, loss_fn):
 
 def train_vanilla_sav(model, X_train, y_train, X_test, y_test,
                       C=1.0, lambda_=0.0, dt=0.1, batch_size=256,
-                      epochs=50000, device=None, slack_interval=5000,
+                      epochs=10000, device=None, slack_interval=1000,
                       wandb_run=None):
-    """Algorithm 1: Vanilla SAV.
+    """Algorithm 1: Vanilla SAV (MATH_REFERENCE lines 84-90).
 
-    Per MATH_REFERENCE lines 84-90:
       1. mu^n = grad_I(theta^n) / sqrt(I(theta^n) + C)
       2. a = <mu^n, theta^n>, b = ||mu^n||^2, alpha = 1/(1 + lambda*dt)
       3. r^{n+1} = (r^n - lambda*dt*alpha/2 * a) / (1 + dt*alpha/2 * b)
@@ -74,7 +75,7 @@ def train_vanilla_sav(model, X_train, y_train, X_test, y_test,
     X_test = X_test.to(device)
     y_test = y_test.to(device)
 
-    loss_fn = nn.MSELoss()
+    loss_fn = RelativeErrorLoss()
     alpha = 1.0 / (1.0 + lambda_ * dt)
 
     send_slack(_sav_config_str("Vanilla SAV", model, X_train, epochs,
@@ -165,11 +166,10 @@ def train_vanilla_sav(model, X_train, y_train, X_test, y_test,
 
 def train_restart_sav(model, X_train, y_train, X_test, y_test,
                       C=1.0, lambda_=0.0, dt=0.1, batch_size=256,
-                      epochs=50000, device=None, slack_interval=5000,
+                      epochs=10000, device=None, slack_interval=1000,
                       wandb_run=None):
-    """Algorithm 2: Restart SAV.
+    """Algorithm 2: Restart SAV (MATH_REFERENCE lines 121-127).
 
-    Per MATH_REFERENCE lines 121-126:
     Same as Vanilla but reset r_hat = sqrt(I_batch + C) at each step.
     """
     if device is None:
@@ -181,7 +181,7 @@ def train_restart_sav(model, X_train, y_train, X_test, y_test,
     X_test = X_test.to(device)
     y_test = y_test.to(device)
 
-    loss_fn = nn.MSELoss()
+    loss_fn = RelativeErrorLoss()
     alpha = 1.0 / (1.0 + lambda_ * dt)
 
     send_slack(_sav_config_str("Restart SAV", model, X_train, epochs,
@@ -189,7 +189,6 @@ def train_restart_sav(model, X_train, y_train, X_test, y_test,
 
     # Initialize theta
     theta = model.flatten_params().clone()
-    # r is reset per-step, but we track it for energy logging
     full_loss = evaluate_loss(model, X_train, y_train, loss_fn)
     r = math.sqrt(full_loss + C)
 
@@ -272,17 +271,19 @@ def train_restart_sav(model, X_train, y_train, X_test, y_test,
 
 def train_relax_sav(model, X_train, y_train, X_test, y_test,
                     C=1.0, lambda_=0.0, dt=0.1, batch_size=256,
-                    epochs=50000, device=None, slack_interval=5000,
-                    wandb_run=None):
-    """Algorithm 3: Relax SAV.
+                    epochs=10000, device=None, slack_interval=1000,
+                    wandb_run=None, eta=0.99):
+    """Algorithm 3: Relax SAV with eta parameter.
 
-    Per MATH_REFERENCE lines 188-195:
-      1. Run Vanilla step -> r_tilde, theta_new
-      2. r_hat_new = sqrt(I(theta_new) + C)
-      3. S_n = r^2 + lambda/2 * (||theta||^2 - ||theta_new||^2)
-      4. If r_hat_new^2 <= S_n: xi=0
-      5. Else: delta = r_tilde - r_hat_new, xi = (sqrt(S_n) - r_hat_new) / delta, clamp [0,1]
-      6. r_new = xi * r_tilde + (1-xi) * r_hat_new
+    Paper's Algorithm 4 (PM version) with eta=0.99:
+      1. Do vanilla SAV step -> r_tilde, theta_new
+      2. r_hat = sqrt(I(theta_new) + C)
+      3. Solve quadratic for xi_0:
+         a_coeff = (r_tilde - r_hat)^2
+         b_coeff = 2*r_hat*(r_tilde - r_hat)
+         c_coeff = r_hat^2 - r_tilde^2 - eta*||theta_new - theta_old||^2/dt
+         xi_0 = max{0, (-b_coeff - sqrt(discriminant)) / (2*a_coeff)}
+      4. r_new = xi_0*r_tilde + (1-xi_0)*r_hat
     """
     if device is None:
         device = get_device()
@@ -293,7 +294,7 @@ def train_relax_sav(model, X_train, y_train, X_test, y_test,
     X_test = X_test.to(device)
     y_test = y_test.to(device)
 
-    loss_fn = nn.MSELoss()
+    loss_fn = RelativeErrorLoss()
     alpha = 1.0 / (1.0 + lambda_ * dt)
 
     send_slack(_sav_config_str("Relax SAV", model, X_train, epochs,
@@ -319,7 +320,6 @@ def train_relax_sav(model, X_train, y_train, X_test, y_test,
             X_b, y_b = X_train[idx], y_train[idx]
 
             theta_old = theta.clone()
-            r_old = r
 
             # === Vanilla step (Algorithm 1) ===
             I_batch, mu, grad_I, _ = _compute_mu_and_loss(
@@ -332,32 +332,29 @@ def train_relax_sav(model, X_train, y_train, X_test, y_test,
                       (1.0 + dt * alpha / 2.0 * b)
             theta_new = alpha * (theta - dt * r_tilde * mu)
 
-            # === Relax correction ===
+            # === Relax correction with eta ===
             # Step 2: evaluate I(theta_new) via forward pass
             I_new = _evaluate_batch_loss(model, theta_new, X_b, y_b, loss_fn)
-            r_hat_new = math.sqrt(I_new + C)
+            r_hat = math.sqrt(I_new + C)
 
-            # Step 3: S_n = r_old^2 + lambda/2 * (||theta_old||^2 - ||theta_new||^2)
-            S_n = r_old ** 2 + lambda_ / 2.0 * (
-                torch.dot(theta_old, theta_old).item() -
-                torch.dot(theta_new, theta_new).item()
-            )
-            # Guard against numerical issues
-            S_n = max(S_n, 0.0)
+            # Step 3: solve quadratic for xi_0
+            diff_theta = theta_new - theta_old
+            theta_diff_sq = torch.dot(diff_theta, diff_theta).item()
 
-            # Step 4-5: compute xi
-            if r_hat_new ** 2 <= S_n:
-                xi = 0.0
-            else:
-                delta = r_tilde - r_hat_new
-                if abs(delta) < 1e-12:
-                    xi = 0.0
-                else:
-                    xi = (math.sqrt(S_n) - r_hat_new) / delta
-                    xi = max(0.0, min(1.0, xi))
+            delta = r_tilde - r_hat
+            a_coeff = delta ** 2
+            b_coeff = 2.0 * r_hat * delta
+            c_coeff = r_hat ** 2 - r_tilde ** 2 - eta * theta_diff_sq / dt
 
-            # Step 6: blend
-            r = xi * r_tilde + (1.0 - xi) * r_hat_new
+            xi_0 = 0.0
+            if abs(a_coeff) > 1e-15:
+                discriminant = b_coeff ** 2 - 4.0 * a_coeff * c_coeff
+                if discriminant >= 0:
+                    xi_0 = (-b_coeff - math.sqrt(discriminant)) / (2.0 * a_coeff)
+                    xi_0 = max(0.0, min(1.0, xi_0))
+
+            # Step 4: blend
+            r = xi_0 * r_tilde + (1.0 - xi_0) * r_hat
             theta = theta_new
 
             if math.isnan(r) or torch.isnan(theta).any():
@@ -394,7 +391,8 @@ def train_relax_sav(model, X_train, y_train, X_test, y_test,
 
     return {
         "method": "Relax SAV",
-        "params": {"C": C, "lambda": lambda_, "dt": dt, "batch_size": batch_size},
+        "params": {"C": C, "lambda": lambda_, "dt": dt, "batch_size": batch_size,
+                   "eta": eta},
         "train_loss": train_losses,
         "test_loss": test_losses,
         "energy": energy_values,

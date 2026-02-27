@@ -4,6 +4,16 @@ import torch
 import torch.nn as nn
 
 
+class RelativeErrorLoss(nn.Module):
+    """Relative error loss: sum((pred - target)^2) / sum(target^2).
+
+    This is the loss function used in Ma, Mao & Shen (2024).
+    """
+
+    def forward(self, pred, target):
+        return torch.sum((pred - target) ** 2) / torch.sum(target ** 2)
+
+
 def get_device():
     """Return best available device (CUDA > CPU)."""
     if torch.cuda.is_available():
@@ -26,7 +36,7 @@ def evaluate_loss(model, X, y, loss_fn=None):
     Returns scalar float.
     """
     if loss_fn is None:
-        loss_fn = nn.MSELoss()
+        loss_fn = RelativeErrorLoss()
     with torch.no_grad():
         pred = model(X)
         return loss_fn(pred, y).item()
@@ -38,7 +48,7 @@ def compute_batch_gradient(model, X_batch, y_batch, loss_fn=None):
     Returns (loss_value: float, grad_flat: Tensor of shape (d,)).
     """
     if loss_fn is None:
-        loss_fn = nn.MSELoss()
+        loss_fn = RelativeErrorLoss()
 
     model.zero_grad()
     pred = model(X_batch)

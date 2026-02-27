@@ -37,7 +37,7 @@ class OneHiddenLayerNet(nn.Module):
         ones = torch.ones(x.shape[0], 1, device=x.device, dtype=x.dtype)
         x_aug = torch.cat([x, ones], dim=1)  # (batch, D+1)
         h = torch.relu(x_aug @ self.W)       # (batch, m)
-        out = h @ self.a                      # (batch, 1)
+        out = (h @ self.a) / self.m           # (batch, 1) — paper's 1/m factor
         return out.squeeze(-1)                # (batch,)
 
     def flatten_params(self):

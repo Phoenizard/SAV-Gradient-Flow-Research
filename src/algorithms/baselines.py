@@ -2,9 +2,8 @@
 
 import time
 import torch
-import torch.nn as nn
 
-from src.utils.trainer import get_device, make_batches, evaluate_loss
+from src.utils.trainer import get_device, make_batches, evaluate_loss, RelativeErrorLoss
 from src.utils.slack import send_slack
 
 
@@ -25,7 +24,7 @@ def _train_optimizer(method_name, optimizer_cls, optimizer_kwargs,
     X_test = X_test.to(device)
     y_test = y_test.to(device)
 
-    loss_fn = nn.MSELoss()
+    loss_fn = RelativeErrorLoss()
     optimizer = optimizer_cls(model.parameters(), **optimizer_kwargs)
 
     # Config string for Slack
