@@ -59,11 +59,11 @@ def train_vanilla_sav(model, X_train, y_train, X_test, y_test,
                       C=1.0, lambda_=0.0, dt=0.1, batch_size=256,
                       epochs=10000, device=None, slack_interval=1000,
                       wandb_run=None):
-    """Algorithm 1: Vanilla SAV (MATH_REFERENCE lines 84-90).
+    """Algorithm 1: Vanilla SAV (MATH_REFERENCE Eqs. 80-82).
 
       1. mu^n = grad_I(theta^n) / sqrt(I(theta^n) + C)
       2. a = <mu^n, theta^n>, b = ||mu^n||^2, alpha = 1/(1 + lambda*dt)
-      3. r^{n+1} = (r^n - lambda*dt*alpha/2 * a) / (1 + dt*alpha/2 * b)
+      3. r^{n+1} = (r^n + (alpha-1)/2 * a) / (1 + alpha*dt/2 * b)
       4. theta^{n+1} = alpha * (theta^n - dt * r^{n+1} * mu^n)
     """
     if device is None:
@@ -109,11 +109,11 @@ def train_vanilla_sav(model, X_train, y_train, X_test, y_test,
             a = torch.dot(mu, theta).item()
             b = torch.dot(mu, mu).item()
 
-            # Step 3: r update
-            r_new = (r - lambda_ * dt * alpha / 2.0 * a) / \
-                    (1.0 + dt * alpha / 2.0 * b)
+            # Step 3: r update (semi-implicit, Eq. 80)
+            r_new = (r + (alpha - 1.0) / 2.0 * a) / \
+                    (1.0 + alpha * dt / 2.0 * b)
 
-            # Step 4: theta update
+            # Step 4: theta update (semi-implicit, Eq. 82)
             theta = alpha * (theta - dt * r_new * mu)
 
             r = r_new
@@ -168,7 +168,7 @@ def train_restart_sav(model, X_train, y_train, X_test, y_test,
                       C=1.0, lambda_=0.0, dt=0.1, batch_size=256,
                       epochs=10000, device=None, slack_interval=1000,
                       wandb_run=None):
-    """Algorithm 2: Restart SAV (MATH_REFERENCE lines 121-127).
+    """Algorithm 2: Restart SAV (MATH_REFERENCE Algorithm 2).
 
     Same as Vanilla but reset r_hat = sqrt(I_batch + C) at each step.
     """
@@ -215,11 +215,11 @@ def train_restart_sav(model, X_train, y_train, X_test, y_test,
             a = torch.dot(mu, theta).item()
             b = torch.dot(mu, mu).item()
 
-            # Step 3: r update (using r_hat instead of r)
-            r_new = (r_hat - lambda_ * dt * alpha / 2.0 * a) / \
-                    (1.0 + dt * alpha / 2.0 * b)
+            # Step 3: r update (using r_hat instead of r, semi-implicit)
+            r_new = (r_hat + (alpha - 1.0) / 2.0 * a) / \
+                    (1.0 + alpha * dt / 2.0 * b)
 
-            # Step 4: theta update
+            # Step 4: theta update (semi-implicit)
             theta = alpha * (theta - dt * r_new * mu)
 
             r = r_new
@@ -321,15 +321,15 @@ def train_relax_sav(model, X_train, y_train, X_test, y_test,
 
             theta_old = theta.clone()
 
-            # === Vanilla step (Algorithm 1) ===
+            # === Vanilla step (semi-implicit) ===
             I_batch, mu, grad_I, _ = _compute_mu_and_loss(
                 model, theta, X_b, y_b, C, loss_fn
             )
             a = torch.dot(mu, theta).item()
             b = torch.dot(mu, mu).item()
 
-            r_tilde = (r - lambda_ * dt * alpha / 2.0 * a) / \
-                      (1.0 + dt * alpha / 2.0 * b)
+            r_tilde = (r + (alpha - 1.0) / 2.0 * a) / \
+                      (1.0 + alpha * dt / 2.0 * b)
             theta_new = alpha * (theta - dt * r_tilde * mu)
 
             # === Relax correction with eta ===

@@ -91,12 +91,16 @@ def _train_optimizer(method_name, optimizer_cls, optimizer_kwargs,
 
 def train_sgd(model, X_train, y_train, X_test, y_test,
               lr=0.1, batch_size=256, epochs=50000, device=None,
-              slack_interval=5000, wandb_run=None):
-    """Train with vanilla SGD (no momentum)."""
+              slack_interval=5000, wandb_run=None, weight_decay=0.0):
+    """Train with vanilla SGD (no momentum).
+
+    weight_decay: L2 regularization coefficient (corresponds to lambda in the
+    gradient flow dtheta/dt = -lambda*theta - grad_I).
+    """
     return _train_optimizer(
         "SGD",
         torch.optim.SGD,
-        {"lr": lr, "momentum": 0},
+        {"lr": lr, "momentum": 0, "weight_decay": weight_decay},
         model, X_train, y_train, X_test, y_test,
         batch_size=batch_size, epochs=epochs, device=device,
         slack_interval=slack_interval, wandb_run=wandb_run,

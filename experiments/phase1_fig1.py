@@ -89,11 +89,11 @@ def main():
     t_total = time.time()
 
     methods = [
-        ("GD", {"lr": LR, "momentum": 0},
+        ("GD", {"lr": LR, "momentum": 0, "weight_decay": LAMBDA},
          lambda net, wb: train_sgd(
             net, X_tr, y_tr, X_te, y_te,
             lr=LR, batch_size=BATCH_SIZE, epochs=epochs, device=device,
-            slack_interval=slack_interval, wandb_run=wb)),
+            slack_interval=slack_interval, wandb_run=wb, weight_decay=LAMBDA)),
         ("Vanilla_SAV", {"C": C, "lambda": LAMBDA, "dt": LR},
          lambda net, wb: train_vanilla_sav(
             net, X_tr, y_tr, X_te, y_te,

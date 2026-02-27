@@ -85,8 +85,10 @@ $$\boxed{\theta^{n+1} = \frac{\theta^n - \Delta t\, r^{n+1}\mu^n}{1+\lambda\Delt
 
 > 1. Compute $\mu^n = \nabla I(\theta^n) / \sqrt{I(\theta^n)+C}$
 > 2. Compute $a = \langle\mu^n,\theta^n\rangle$, $b = \|\mu^n\|^2$, $\alpha = 1/(1+\lambda\Delta t)$
-> 3. $r^{n+1} = \displaystyle\frac{r^n - \frac{\lambda\Delta t\,\alpha}{2}\,a}{1 + \frac{\Delta t\,\alpha}{2}\,b}$
+> 3. $r^{n+1} = \displaystyle\frac{r^n + \frac{\alpha-1}{2}\,a}{1 + \frac{\alpha\Delta t}{2}\,b}$
 > 4. $\theta^{n+1} = \alpha(\theta^n - \Delta t\, r^{n+1}\mu^n)$
+
+**Note:** When $\lambda=0$, $\alpha=1$ and the $a$ term vanishes, giving the simplified form $r^{n+1} = r^n/(1 + \Delta t\,b/2)$, $\theta^{n+1} = \theta^n - \Delta t\,r^{n+1}\mu^n$.
 
 **Theorem 1 (Unconditional Stability).** $(r^{n+1})^2 + \frac{\lambda}{2}\|\theta^{n+1}\|^2 \leq (r^n)^2 + \frac{\lambda}{2}\|\theta^n\|^2$ for all $\Delta t > 0$.
 

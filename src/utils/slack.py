@@ -5,6 +5,10 @@ import os
 import urllib.request
 import urllib.error
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 SLACK_WEBHOOK_URL = os.environ.get("SLACK_WEBHOOK_URL", "")
 
 
