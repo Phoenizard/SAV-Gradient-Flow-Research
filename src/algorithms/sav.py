@@ -59,12 +59,15 @@ def train_vanilla_sav(model, X_train, y_train, X_test, y_test,
                       C=1.0, lambda_=0.0, dt=0.1, batch_size=256,
                       epochs=10000, device=None, slack_interval=1000,
                       wandb_run=None):
-    """Algorithm 1: Vanilla SAV (MATH_REFERENCE Eqs. 80-82).
+    """Vanilla SAV (semi-implicit discretization of Eq. 17a-b).
 
       1. mu^n = grad_I(theta^n) / sqrt(I(theta^n) + C)
       2. a = <mu^n, theta^n>, b = ||mu^n||^2, alpha = 1/(1 + lambda*dt)
       3. r^{n+1} = (r^n + (alpha-1)/2 * a) / (1 + alpha*dt/2 * b)
       4. theta^{n+1} = alpha * (theta^n - dt * r^{n+1} * mu^n)
+
+    When lambda=0: alpha=1, (alpha-1)=0 => r update simplifies to r/(1+dt/2*b),
+    theta update simplifies to theta - dt*r*mu. Both forms are equivalent.
     """
     if device is None:
         device = get_device()
@@ -109,11 +112,11 @@ def train_vanilla_sav(model, X_train, y_train, X_test, y_test,
             a = torch.dot(mu, theta).item()
             b = torch.dot(mu, mu).item()
 
-            # Step 3: r update (semi-implicit, Eq. 80)
+            # Step 3: r update (semi-implicit, derived from Eq. 17a-b)
             r_new = (r + (alpha - 1.0) / 2.0 * a) / \
                     (1.0 + alpha * dt / 2.0 * b)
 
-            # Step 4: theta update (semi-implicit, Eq. 82)
+            # Step 4: theta update (semi-implicit)
             theta = alpha * (theta - dt * r_new * mu)
 
             r = r_new
@@ -168,7 +171,7 @@ def train_restart_sav(model, X_train, y_train, X_test, y_test,
                       C=1.0, lambda_=0.0, dt=0.1, batch_size=256,
                       epochs=10000, device=None, slack_interval=1000,
                       wandb_run=None):
-    """Algorithm 2: Restart SAV (MATH_REFERENCE Algorithm 2).
+    """Algorithm 3 from paper: Restart SAV.
 
     Same as Vanilla but reset r_hat = sqrt(I_batch + C) at each step.
     """
@@ -215,7 +218,7 @@ def train_restart_sav(model, X_train, y_train, X_test, y_test,
             a = torch.dot(mu, theta).item()
             b = torch.dot(mu, mu).item()
 
-            # Step 3: r update (using r_hat instead of r, semi-implicit)
+            # Step 3: r update (semi-implicit, r_hat replaces r)
             r_new = (r_hat + (alpha - 1.0) / 2.0 * a) / \
                     (1.0 + alpha * dt / 2.0 * b)
 
