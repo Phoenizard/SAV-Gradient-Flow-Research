@@ -3,7 +3,10 @@
 import time
 import torch
 
-from src.utils.trainer import get_device, make_batches, evaluate_loss, RelativeErrorLoss
+from src.utils.trainer import (
+    get_device, make_batches, evaluate_loss, evaluate_rel_error,
+    MSELoss, RelativeErrorLoss
+)
 from src.utils.slack import send_slack
 
 
@@ -24,7 +27,7 @@ def _train_optimizer(method_name, optimizer_cls, optimizer_kwargs,
     X_test = X_test.to(device)
     y_test = y_test.to(device)
 
-    loss_fn = RelativeErrorLoss()
+    train_loss_fn = MSELoss()  # Training: MSE for gradient computation
     optimizer = optimizer_cls(model.parameters(), **optimizer_kwargs)
 
     # Config string for Slack
@@ -36,9 +39,9 @@ def _train_optimizer(method_name, optimizer_cls, optimizer_kwargs,
     )
     send_slack(f"Starting {method_name} on current example\n{config_str}")
 
-    train_losses = []
-    test_losses = []
-    energy_values = []  # energy = train_loss for baselines
+    train_losses = []  # relative error (for paper comparison)
+    test_losses = []   # relative error (for paper comparison)
+    energy_values = []  # energy = train_mse for baselines
 
     gen = torch.Generator().manual_seed(42)
     t0 = time.time()
@@ -49,30 +52,32 @@ def _train_optimizer(method_name, optimizer_cls, optimizer_kwargs,
         for idx in batches:
             optimizer.zero_grad()
             pred = model(X_train[idx])
-            loss = loss_fn(pred, y_train[idx])
+            loss = train_loss_fn(pred, y_train[idx])
             loss.backward()
             optimizer.step()
 
         # Epoch-end evaluation
-        tr_loss = evaluate_loss(model, X_train, y_train, loss_fn)
-        te_loss = evaluate_loss(model, X_test, y_test, loss_fn)
-        train_losses.append(tr_loss)
-        test_losses.append(te_loss)
-        energy_values.append(tr_loss)
+        tr_rel = evaluate_rel_error(model, X_train, y_train)
+        te_rel = evaluate_rel_error(model, X_test, y_test)
+        tr_mse = evaluate_loss(model, X_train, y_train, train_loss_fn)
+        train_losses.append(tr_rel)
+        test_losses.append(te_rel)
+        energy_values.append(tr_mse)
 
         if wandb_run is not None:
-            wandb_run.log({"epoch": epoch, "train_loss": tr_loss,
-                           "test_loss": te_loss, "energy": tr_loss})
+            wandb_run.log({"epoch": epoch,
+                           "train_rel_error": tr_rel, "test_rel_error": te_rel,
+                           "train_mse": tr_mse, "energy": tr_mse})
 
         if epoch % slack_interval == 0 or epoch == 1:
             send_slack(
                 f"{method_name} | epoch {epoch}/{epochs} | "
-                f"train_loss={tr_loss:.4e} | test_loss={te_loss:.4e}"
+                f"train_rel={tr_rel:.4e} | test_rel={te_rel:.4e}"
             )
 
     wall_time = time.time() - t0
     send_slack(
-        f"{method_name} done | final_test_loss={test_losses[-1]:.4e} | "
+        f"{method_name} done | final_test_rel={test_losses[-1]:.4e} | "
         f"wall_time={wall_time:.1f}s"
     )
 

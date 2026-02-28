@@ -22,15 +22,15 @@ def plot_loss_curves(results_list, title, save_path):
 
     ax1.set_yscale("log")
     ax1.set_xlabel("Epoch")
-    ax1.set_ylabel("Train Loss")
-    ax1.set_title(f"{title} — Train Loss")
+    ax1.set_ylabel("Train Relative Error")
+    ax1.set_title(f"{title} — Train Relative Error")
     ax1.legend()
     ax1.grid(True, alpha=0.3)
 
     ax2.set_yscale("log")
     ax2.set_xlabel("Epoch")
-    ax2.set_ylabel("Test Loss")
-    ax2.set_title(f"{title} — Test Loss")
+    ax2.set_ylabel("Test Relative Error")
+    ax2.set_title(f"{title} — Test Relative Error")
     ax2.legend()
     ax2.grid(True, alpha=0.3)
 

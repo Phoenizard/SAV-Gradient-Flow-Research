@@ -31,14 +31,15 @@ out = h @ self.a  # Missing 1/m
 
 **Impact:** Different input scale means different gradient magnitudes and loss landscape geometry.
 
-### 3. Wrong loss function
+### 3. Loss function clarification (RESOLVED)
 
-**Paper (Section 3.1):** Uses relative error as the loss function:
-$$I(\theta) = \frac{\sum_i (f(\theta; x_i) - y_i)^2}{\sum_i y_i^2}$$
+**Original belief:** Paper uses relative error as I(θ) for optimization.
 
-**Our code:** Uses `nn.MSELoss()` = (1/N) Σ(f−y)².
+**Actual:** Paper's I(θ) in the gradient flow (Eq. 2) is MSE. Relative error is the **evaluation metric** plotted on figure y-axes, not the optimization objective.
 
-**Impact:** Relative error is scale-invariant; MSE is not. Different loss landscapes and gradient magnitudes.
+**Evidence:** Using RelativeError as training loss suppresses gradients by factor N/Σy². For Example 2 (y~O(100)), this is ~28000x slower, causing training to stall at 0.992. Switching to MSE fixes this completely.
+
+**Resolution:** MSE for training, RelativeError for reporting. See `reports/loss_investigation.md`.
 
 ### 4. Wrong data split
 
@@ -83,7 +84,7 @@ $$r^{n+1} = \frac{r^n}{1 + \alpha \Delta t / 2 \cdot b}$$
 
 ## Paper's Per-Figure Experimental Settings
 
-All figures use: ReLU activation, Z-score normalized inputs, relative error loss, 80/20 train/test split from M total.
+All figures use: ReLU activation, Z-score normalized inputs, MSE training loss, relative error for evaluation, 80/20 train/test split from M total.
 
 | Fig | Example | D  | m    | M      | l (batch) | lr     | C   | λ  | Epochs | PM methods shown        |
 |-----|---------|----|------|--------|-----------|--------|-----|----|--------|-------------------------|

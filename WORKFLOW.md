@@ -92,7 +92,7 @@ Expected: run visible at https://wandb.ai under project `sav-gradient-flow-resea
 {phase}_{algorithm}_{example}  # e.g. phase1_vanilla-sav_example1
 ```
 
-**Metrics to log for every experiment:** `train_loss`, `test_loss`, `energy`, `r_value` (or `q_norm` for IEQ), step (= epoch).
+**Metrics to log for every experiment:** `train_rel_error`, `test_rel_error`, `train_mse`, `energy`, `r` (or `q_norm` for IEQ), step (= epoch).
 
 ---
 
@@ -481,19 +481,19 @@ Every experiment must save:
 ```python
 results = {
     'method': 'Vanilla SAV',
-    'example': 'Example 1',
-    'params': {'C': 1, 'lambda_': 0, 'dt': 0.1, 'batch_size': 256, 'm': 100, 'D': 20},
-    'train_loss': [...],   # list of float, one per epoch
-    'test_loss': [...],    # list of float, one per epoch
-    'energy': [...],       # list of float, one per epoch (r^2 for SAV/ESAV, ||q||^2/2 for IEQ)
+    'params': {'C': 1, 'lambda': 0, 'dt': 0.1, 'batch_size': 64},
+    'train_loss': [...],   # list of float, relative error per epoch (for paper comparison)
+    'test_loss': [...],    # list of float, relative error per epoch
+    'energy': [...],       # list of float, one per epoch (r^2 for SAV/ESAV, MSE for baselines)
     'r_values': [...],     # list of float (r^n trajectory, for SAV/ESAV only)
-    'final_train_loss': float,
-    'final_test_loss': float,
-    'epochs_run': int,
-    'wall_time_seconds': float,
+    'final_train_loss': float,  # final relative error
+    'final_test_loss': float,   # final relative error
+    'wall_time': float,
 }
 torch.save(results, 'results/phaseX_xxx/method_example_results.pt')
 ```
+
+**Note:** `train_loss`/`test_loss` store relative error (matching paper figures). MSE is logged separately to wandb as `train_mse`.
 
 Every experiment must also save a plot `*_loss_curves.png` showing:
 - Train loss vs epoch (log scale y-axis)
@@ -518,13 +518,19 @@ When a bug or unexpected result is found:
 ## Phase Completion Checklist
 
 ### Phase 1 Complete When:
-- [ ] All 3 SAV variants implemented and pass energy stability check
-- [ ] Example 1 and Example 2 experiments run to 50k epochs
+- [x] All 3 SAV variants implemented and pass energy stability check
+- [ ] Example 1 and Example 2 experiments run to 10k epochs (Fig 2 + Fig 7)
 - [ ] Paper comparison evaluation done (results in phase1_report.md)
 - [ ] All results saved as .pt files and plots saved as .png
 - [ ] `phase1-paper-verified` tag created
 - [ ] Free exploration done and documented
 - [ ] `phase1-complete` tag created
+
+**Phase 1 Progress Notes:**
+- 6 critical discrepancies found and fixed (see `reports/paper_discrepancies.md`)
+- Loss function fixed: MSE for training, RelativeError for evaluation only (see `reports/loss_investigation.md`)
+- Smoke test Fig 7 passed: SGD train_rel_error 0.992 → 0.001 after fix
+- Full experiments (Fig 2 + Fig 7) re-running with corrected loss function
 
 ### Phase 2 Complete When:
 - [ ] All 3 ESAV variants implemented

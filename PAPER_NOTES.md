@@ -23,9 +23,18 @@ where:
 
 **Data preprocessing:** Z-score normalization: $x \Rightarrow (x - \mu) / \sigma$, where $\mu$ and $\sigma$ are computed from the training set.
 
-**Loss function:** Relative error (NOT MSE):
+**Training loss (I(θ) for optimization):** Standard MSE:
 
-$$I(\theta) = \frac{\sum_{i=1}^{N} (f(\theta; x_i) - y_i)^2}{\sum_{i=1}^{N} y_i^2}$$
+$$I(\theta) = \frac{1}{N}\sum_{i=1}^{N} (f(\theta; x_i) - y_i)^2$$
+
+**Evaluation metric (for figures):** Relative error:
+
+$$\text{RelError}(\theta) = \frac{\sum_{i=1}^{N} (f(\theta; x_i) - y_i)^2}{\sum_{i=1}^{N} y_i^2}$$
+
+**Note:** The paper's figures plot relative error on the y-axis, but the gradient flow
+and SAV formulations use MSE (or sum-of-squares) as I(θ). Using relative error as
+the training loss suppresses gradients by a factor of N/Σy² — negligible for Example 1
+(y~O(1)) but catastrophic for Example 2 (y~O(100), factor ~28000x slower).
 
 **Data split:** 80% training, 20% testing from a single pool of M data points.
 
@@ -61,7 +70,7 @@ where $c_i \sim \text{Uniform}(0, 1)$, fixed with seed.
 
 ## Per-Figure Experimental Settings
 
-All figures use: ReLU activation, Z-score normalized inputs, relative error loss, 80/20 train/test split from M total.
+All figures use: ReLU activation, Z-score normalized inputs, MSE training loss, relative error for evaluation, 80/20 train/test split from M total.
 
 | Fig | Example | D  | m    | M      | l (batch) | lr     | C   | λ  | Epochs | PM methods shown        |
 |-----|---------|----|------|--------|-----------|--------|-----|----|--------|-------------------------|
@@ -81,12 +90,12 @@ All figures use: ReLU activation, Z-score normalized inputs, relative error loss
 ### Primary: Fig 2 (Example 1, λ=0)
 - D=40, m=1000, M=10000, l=64, lr=0.2, C=1, λ=0, 10000 epochs
 - Methods: PM-Euler (SGD), PM-SAV, PM-ResSAV, PM-RelSAV
-- Expected: SAV train loss ~1e-10
+- Expected: SAV train relative error ~1e-10
 
 ### Primary: Fig 7 (Example 2, λ=0)
 - D=40, m=100, M=10000, l=64, lr=0.01, C=1, λ=0, 10000 epochs
 - Methods: PM-Euler (SGD), PM-SAV, PM-ResSAV, PM-RelSAV
-- Expected: SAV train loss ~1e-5
+- Expected: SAV train relative error ~1e-5
 
 ### Energy verification: Fig 1 (Example 1, λ=10)
 - D=20, m=1000, M=10000, l=8000 (full batch), lr=0.6, C=1, λ=10, 8000 epochs
