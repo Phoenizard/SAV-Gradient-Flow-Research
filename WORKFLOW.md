@@ -519,21 +519,21 @@ When a bug or unexpected result is found:
 
 ### Phase 1 Complete When:
 - [x] All 3 SAV variants implemented and pass energy stability check
-- [ ] Example 1 and Example 2 experiments run to 10k epochs (Fig 2 + Fig 7)
-- [ ] Paper comparison evaluation done (results in phase1_report.md)
-- [ ] All results saved as .pt files and plots saved as .png
-- [ ] `phase1-paper-verified` tag created
-- [ ] Free exploration done and documented
-- [ ] `phase1-complete` tag created
+- [x] Example 1 and Example 2 experiments run to 10k epochs (Fig 2 + Fig 7)
+- [x] Paper comparison evaluation done (results in phase1_report.md)
+- [x] All results saved as .pt files and plots saved as .png
+- [x] `phase1-paper-verified` tag created
+- [x] Free exploration done and documented
+- [x] `phase1-complete` tag created
 
-**Phase 1 Progress Notes:**
-- 6 critical discrepancies found and fixed (see `reports/paper_discrepancies.md`)
-- Loss function fixed: MSE for training, RelativeError for evaluation only (see `reports/loss_investigation.md`)
-- Smoke test Fig 7 passed: SGD train_rel_error 0.992 → 0.001 after fix
-- Full experiments (Fig 2 + Fig 7) re-running with corrected loss function
+**Phase 1 Completion Notes:**
+- 4/5 paper comparison criteria pass (Criterion 3 fails: Relax > Restart)
+- Vanilla SAV r-collapse confirmed; Restart SAV is most practical variant
+- Energy stability (Theorem 1) verified: 0 violations for Vanilla SAV across all experiments
+- See `reports/phase1_report.md` for full analysis
 
 ### Phase 2 Complete When:
-- [ ] All 3 ESAV variants implemented
+- [x] All 3 ESAV variants implemented
 - [ ] Example 1 and Example 2 experiments run
 - [ ] Internal consistency verified
 - [ ] `phase2-complete` tag created
