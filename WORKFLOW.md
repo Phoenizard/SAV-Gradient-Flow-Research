@@ -546,8 +546,15 @@ When a bug or unexpected result is found:
 - ESAV Vanilla 13-229x better than SAV Vanilla (log-space prevents r-collapse)
 
 ### Phase 3 Complete When:
-- [ ] All 3 IEQ variants implemented
-- [ ] Example 1 and Example 2 experiments run (batch_size ≤ 64)
-- [ ] Internal consistency verified
-- [ ] `phase3-complete` tag created
-- [ ] Final summary written in reports/
+- [x] All 3 IEQ variants implemented
+- [x] Example 1 and Example 2 experiments run (batch_size ≤ 64)
+- [x] Internal consistency verified
+- [x] `phase3-complete` tag created
+- [x] Final summary written in reports/
+
+**Phase 3 Completion Notes:**
+- Vanilla IEQ diverges (q-drift in mini-batch, expected)
+- Restart IEQ = Levenberg-Marquardt with μ=1/dt (proven via Woodbury identity)
+- Relax IEQ works correctly after fresh-q fix (commit 8977012)
+- IEQ positioned as theoretical insight, not practical algorithm
+- See reports/phase3_report.md and reports/IEQ-Review.md
