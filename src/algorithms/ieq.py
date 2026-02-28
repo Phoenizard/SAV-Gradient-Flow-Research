@@ -458,17 +458,19 @@ def train_relax_ieq(model, X_train, y_train, X_test, y_test,
 
         for idx in batches:
             X_b, y_b = X_train[idx], y_train[idx]
-            q_b = q[idx]  # current batch q
 
             theta_old = theta.clone()
-            q_old_norm_sq = torch.dot(q_b, q_b).item()
             theta_old_norm_sq = torch.dot(theta_old, theta_old).item()
 
-            # === Step 1: Vanilla IEQ step ===
+            # === Step 1: Vanilla IEQ step (using FRESH q, not stale q[idx]) ===
+            # In mini-batch mode, q[idx] is stale (from last epoch's update of
+            # this batch). Use fresh q_hat_old = f(theta) - y to avoid q-drift.
             J, f_b = _compute_jacobian_vmap(model, theta, X_b)
+            q_hat_old = f_b - y_b  # fresh residual at current theta
+            q_old_norm_sq = torch.dot(q_hat_old, q_hat_old).item()
             G = J @ J.t()
 
-            rhs = q_b.clone()
+            rhs = q_hat_old.clone()
             if lambda_ > 0:
                 rhs = rhs - alpha * lambda_ * (J @ theta)
             q_tilde = _solve_ieq_system(G, rhs, alpha)
