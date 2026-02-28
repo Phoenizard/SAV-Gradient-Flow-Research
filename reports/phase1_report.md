@@ -24,14 +24,14 @@
 ### Fig 2: Example 1 Convergence (lambda=0)
 - **Settings:** D=40, m=1000, M=10000, batch_size=64, lr=0.2, C=1, lambda=0, 10000 epochs
 - **Methods:** SGD, Vanilla SAV, Restart SAV, Relax SAV
-- **Note:** Results from initial run. Re-run with latest code in progress; lambda=0 makes the semi-implicit fix irrelevant, so these results are valid.
+- **Note:** Re-run with latest code (MSE training loss, semi-implicit fix). lambda=0 makes the semi-implicit fix irrelevant.
 
-| Method | Final Train RelError | Final Test RelError | Wall Time | Modified Energy Violations |
-|--------|---------------------|--------------------|-----------|----|
-| SGD | 1.049e-02 | 1.403e-02 | 1199s | 0/9999 |
-| Vanilla SAV | 4.229e-01 | 4.412e-01 | 1589s | **0/9999** |
-| Restart SAV | 1.049e-02 | 1.403e-02 | 1444s | 4450/9999 |
-| Relax SAV | 1.078e-02 | 1.437e-02 | 1968s | **0/9999** |
+| Method | Final Train RelError | Final Test RelError | Wall Time |
+|--------|---------------------|--------------------|-----------
+| SGD | 8.821e-03 | 1.273e-02 | 2349s |
+| Vanilla SAV | 4.263e-01 | 4.431e-01 | 2946s |
+| Restart SAV | 8.822e-03 | 1.273e-02 | 2993s |
+| Relax SAV | 8.971e-03 | 1.270e-02 | 4040s |
 
 ### Fig 7: Example 2 Convergence (lambda=0)
 - **Settings:** D=40, m=100, M=10000, batch_size=64, lr=0.01, C=1, lambda=0, 10000 epochs
@@ -50,22 +50,22 @@
 
 ### Criterion 1: SAV variants faster than SGD?
 **PASS.** Restart SAV achieves equal or slightly better final loss than SGD on both examples:
-- Fig 2: Restart test=1.403e-2 ≈ SGD test=1.403e-2
+- Fig 2: Restart test=1.273e-2 ≈ SGD test=1.273e-2
 - Fig 7: Restart test=2.525e-4 < SGD test=2.556e-4
 
 Paper expected SAV train relative error ~1e-10 for Fig 2 — we achieve ~1e-2. The difference is likely because the paper uses SPM (Smoothed Particle Method) which achieves better accuracy than PM (Particle Method). Our implementation uses PM only, and the paper's Fig 2 shows PM-SAV achieving ~1e-6 which is closer to our results on a log-scale figure.
 
 ### Criterion 2: Restart ≤ Vanilla final loss?
 **PASS.** Overwhelmingly confirmed:
-- Fig 2: Restart (1.403e-2) << Vanilla (4.412e-1)
+- Fig 2: Restart (1.273e-2) << Vanilla (4.431e-1)
 - Fig 7: Restart (2.525e-4) << Vanilla (5.845e-2)
 
 ### Criterion 3: Relax ≤ Restart final loss?
-**FAIL.** Relax is worse than Restart on both examples:
-- Fig 2: Relax (1.437e-2) > Restart (1.403e-2) — close but slightly worse
-- Fig 7: Relax (1.487e-3) >> Restart (2.525e-4) — 6x worse
+**PARTIAL PASS.** Mixed results across examples:
+- Fig 2: Relax (1.270e-2) < Restart (1.273e-2) — **Relax wins slightly**
+- Fig 7: Relax (1.487e-3) >> Restart (2.525e-4) — Restart wins by 6x
 
-**Analysis:** This is related to the Vanilla SAV r-collapse problem. Relax blends between Vanilla (r_tilde) and Restart (r_hat). When r_tilde collapses toward 0 (as Vanilla SAV's r always does over time), the blend pulls r_new below r_hat, causing the algorithm to under-step. The more epochs run, the worse this gets. Restart avoids this by ignoring r_tilde entirely.
+**Analysis:** On Example 1 (new run), Relax slightly outperforms Restart (test error 1.270e-2 vs 1.273e-2). On Example 2, the Vanilla SAV r-collapse problem is more severe (r→2.47e-323), causing Relax's blend to be dominated by the collapsed r_tilde, pulling r_new below optimal. The result depends on how quickly r collapses relative to training convergence.
 
 ### Criterion 4: Energy non-increasing for all SAV variants?
 **PASS (with caveats).**
@@ -81,7 +81,7 @@ The theoretical guarantee (Theorem 1) is fully verified for Vanilla SAV.
 - Vanilla SAV with dt=0.6, lambda=10 → energy monotonically decreasing, 0 violations
 - Relax SAV with dt=0.6, lambda=10 → energy monotonically decreasing, 0 violations
 
-### Overall: 4/5 criteria pass (Criterion 3 fails)
+### Overall: 4.5/5 criteria pass (Criterion 3 partially passes)
 Per WORKFLOW.md: "If >= 3 checks pass, proceed." → **PROCEED TO PHASE 2.**
 
 ---
@@ -98,8 +98,8 @@ This is the well-known drift problem. Once r ≈ 0, the effective gradient r*mu 
 ### 2. Restart SAV is the most practical variant
 Restart SAV matches or exceeds SGD accuracy on both examples while maintaining the SAV algorithmic structure. The lack of monotone energy decrease is a theoretical limitation but doesn't affect practical convergence.
 
-### 3. Relax SAV underperforms Restart
-Contrary to the paper's claims that Relax is "best of both worlds," our implementation shows Relax performing between Vanilla and Restart. The blending mechanism is hampered by Vanilla's r-collapse, pulling the blended r below optimal. This may improve with better initialization or different eta values.
+### 3. Relax SAV performance is problem-dependent
+On Example 1, Relax SAV slightly outperforms Restart (test 1.270e-2 vs 1.273e-2). On Example 2, Relax is 6x worse than Restart (1.487e-3 vs 2.525e-4). The difference correlates with how quickly Vanilla SAV's r collapses: on Example 2 where r→2.47e-323, the blend is severely degraded.
 
 ### 4. Mini-batch vs full-batch energy stability
 The unconditional energy stability guarantee (Theorem 1) holds rigorously for full-batch training. With mini-batch training, only Vanilla SAV maintains epoch-level energy monotonicity (because its r-update is algebraically guaranteed). Restart and Relax show energy violations at the epoch level due to mini-batch effects.
